@@ -7,34 +7,6 @@ import { Inject, Injectable } from '@nestjs/common'
 import { Writable, Readable } from 'node:stream'
 import { POSTGRES_READ_SERVICE, POSTGRES_WRITE_SERVICE } from '../constants'
 
-class MyWritable extends Writable {
-  _write(chunk, encoding, callback) {
-    console.log(`[${new Date().toISOString()}] ${chunk.toString()}`)
-    callback()
-  }
-}
-
-function getWriteStream() {
-  const stream = new MyWritable()
-  setTimeout(() => {
-    stream.write('Writing data to postgres')
-    stream.end('Ending writing')
-  }, 100)
-
-  return stream
-}
-
-function getReadStream() {
-  const stream = new Readable()
-
-  setTimeout(() => {
-    stream.emit('data', 'Hello data!')
-    stream.emit('end')
-  }, 100)
-
-  return stream
-}
-
 @Injectable()
 export class PostgresMigrationProvider implements IMigrationProvider {
   constructor(

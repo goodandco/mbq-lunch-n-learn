@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/nest-cli",
+  "collection": "@nestjs/schematics",
+  "sourceRoot": "apps/luncn-n-learn/src",
+  "compilerOptions": {
+    "deleteOutDir": true,
+    "webpack": true,
+    "tsConfigPath": "apps/luncn-n-learn/tsconfig.app.json"
+  },
+  "monorepo": true,
+  "root": "apps/luncn-n-learn",
+  "projects": {
+    "luncn-n-learn": {
+      "type": "application",
+      "root": "apps/luncn-n-learn",
+      "entryFile": "main",
+      "sourceRoot": "apps/luncn-n-learn/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/luncn-n-learn/tsconfig.app.json"
+      }
+    },
+    "kata-1": {
+      "type": "application",
+      "root": "apps/kata-1",
+      "entryFile": "main",
+      "sourceRoot": "apps/kata-1/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/kata-1/tsconfig.app.json"
+      }
+    }
+  }
+}

@@ -1,5 +1,31 @@
 version: '3.8'
 services:
+  migrator:
+    command: ["pnpm", "start:kata1"]
+    container_name: migrator
+    build:
+      context: ../..
+      dockerfile: apps/kata-1/Dockerfile
+      args:
+        - APP=kata-1
+    environment:
+      - AWS_REGION=eu-west-1
+      - AWS_ACCESS_KEY_ID=
+      - AWS_SECRET_ACCESS_KEY=
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB_NAME=test_db
+      - POSTGRES_TABLE_NAME=dynamo_db_table
+      - MANAGER_TOTAL_SEGMENTS=4
+    networks:
+      - app-network
+    depends_on:
+      - postgres
+    volumes:
+      - ~/.aws:/root/.aws
+
   postgres:
     container_name: postgres-kata1
     image: postgres
@@ -15,5 +41,11 @@ services:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
 
+networks:
+  app-network:
+    driver: bridge
+
 volumes:
   postgres-data:
+
+

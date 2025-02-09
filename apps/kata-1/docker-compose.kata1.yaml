@@ -12,7 +12,7 @@ services:
 #      - AWS_REGION=eu-west-1
 #      - AWS_ACCESS_KEY_ID=
 #      - AWS_SECRET_ACCESS_KEY=
-#      - POSTGRES_HOST=postgres
+#      - POSTGRES_HOST=postgres-kata1
 #      - POSTGRES_PORT=5432
 #      - POSTGRES_USER=admin
 #      - POSTGRES_PASSWORD=root
@@ -22,11 +22,11 @@ services:
 #    networks:
 #      - app-network
 #    depends_on:
-#      - postgres
+#      - postgres-kata1
 #    volumes:
 #      - ~/.aws:/root/.aws
 
-  postgres:
+  postgres-kata1:
     container_name: postgres-kata1
     image: postgres
     hostname: localhost

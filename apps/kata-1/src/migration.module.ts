@@ -1,6 +1,6 @@
-import { ConsoleLogger, Module } from '@nestjs/common'
-import { ConfigModule } from '@nestjs/config'
-import { MigrationCommand } from './migration.command'
+import { ConsoleLogger, Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { MigrationCommand } from './migration.command';
 import {
   DYNAMO_DB_MIGRATION_PROVIDER,
   DYNAMODB_READ_SERVICE,
@@ -10,12 +10,12 @@ import {
   POSTGRES_MIGRATION_PROVIDER,
   POSTGRES_READ_SERVICE,
   POSTGRES_WRITE_SERVICE,
-} from './constants'
-import { MigrationManager } from './migration.manager'
-import { DynamoDbMigrationProvider } from './providers/provider-ddb.service'
-import { PostgresMigrationProvider } from './providers/provider-postgres.service'
-import { DynamodbReadService } from './services/dynamodb-read.service'
-import { PostgresWriteService } from './services/postgres-write.service'
+} from './constants';
+import { MigrationManager } from './migration.manager';
+import { DynamoDbMigrationProvider } from './providers/provider-ddb.service';
+import { PostgresMigrationProvider } from './providers/provider-postgres.service';
+import { DynamodbReadService } from './services/dynamodb-read.service';
+import { PostgresWriteService } from './services/postgres-write.service';
 
 /**
  * Kata-1 is for building the Migration module
@@ -32,6 +32,8 @@ import { PostgresWriteService } from './services/postgres-write.service'
           dynamodb: {
             tableName: 'code-kata-dummy-data',
             endpoint: 'https://dynamodb.eu-west-1.amazonaws.com',
+            // for using local dynamodb outputfile (output-<segment>.json)
+            useExistingFile: false,
           },
           postgres: {
             connection: {
@@ -65,7 +67,7 @@ import { PostgresWriteService } from './services/postgres-write.service'
       inject: [DYNAMO_DB_MIGRATION_PROVIDER, POSTGRES_MIGRATION_PROVIDER],
       provide: MIGRATION_PROVIDERS_TOKEN,
       useFactory: (dynamoDbProvider, postgresProvider) => {
-        return [dynamoDbProvider, postgresProvider]
+        return [dynamoDbProvider, postgresProvider];
       },
     },
 

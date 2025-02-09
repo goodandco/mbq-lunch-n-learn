@@ -1,64 +1,105 @@
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import { createReadStream, createWriteStream } from 'node:fs';
+import {
+  ChildProcessWithoutNullStreams,
+  SpawnOptionsWithoutStdio,
+  spawn,
+} from 'node:child_process';
 import {
   ConsoleLogger,
   Inject,
   Injectable,
   LoggerService,
-} from '@nestjs/common'
-import { Readable } from 'node:stream'
-import { IReadStreamService } from '../interfaces'
-import { createReadStream, createWriteStream } from 'node:fs'
-import { ConfigService } from '@nestjs/config'
-import { spawn } from 'child_process'
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { IReadStreamService } from '../interfaces';
+
+function spawnWrapper(
+  command: string,
+  args?: readonly string[],
+  opts?: SpawnOptionsWithoutStdio,
+): ChildProcessWithoutNullStreams {
+  const options = opts ?? { env: { ...process.env } };
+  const childProcess = spawn(command, args, options);
+  childProcess.stderr.on('data', (data) =>
+    console.error(`Child process error for command ${command}: ${data}`),
+  );
+
+  return childProcess;
+}
+
+function getFileName(segment: number): string {
+  return `./result-program${segment}.csv`;
+}
 
 @Injectable()
 export class DynamodbReadService implements IReadStreamService {
   constructor(
-    private readonly configService: ConfigService,
-    @Inject(ConsoleLogger) private readonly loggerService: LoggerService,
+    private readonly config: ConfigService,
+    @Inject(ConsoleLogger) private readonly logger: LoggerService,
   ) {}
 
   async read(
     segment: number = 0,
     totalSegments: number = 1,
   ): Promise<Readable> {
-    this.loggerService.debug(`Scanning segment ${segment} of ${totalSegments}`)
-    const fileName = await this.scanInSpawn(segment, totalSegments)
-    this.loggerService.debug(
+    this.logger.log(`Scanning segment ${segment} of ${totalSegments}`);
+    const fileName = getFileName(segment);
+    await this.scanAndSaveFile(fileName, segment, totalSegments);
+    this.logger.debug(
       `Reading file ${fileName} of segment ${segment} of ${totalSegments}`,
-    )
+    );
 
-    return createReadStream(fileName, { highWaterMark: 1 })
+    return createReadStream(fileName, { highWaterMark: 1 });
   }
 
-  async scanInSpawn(segment: number, totalSegments: number): Promise<string> {
-    const tableName = this.configService.get<string>('dynamodb.tableName')
-    const resultFile = `./result-program${segment}.csv`
+  async scanAndSaveFile(
+    fileName: string,
+    segment: number,
+    totalSegments: number,
+  ): Promise<void> {
+    const tableName = this.config.get<string>('dynamodb.tableName');
+    const awsScan = this.spawnScan(tableName, segment, totalSegments);
+    const jqProcess = this.spawnJq();
+    const outputFile = createWriteStream(fileName);
 
-    if (!tableName || !resultFile) {
-      throw new Error(
-        'Missing configuration for DynamoDB table or result file.',
-      )
+    await Promise.all([
+      pipeline(awsScan.stdout, jqProcess.stdin),
+      pipeline(jqProcess.stdout, outputFile),
+    ]);
+  }
+
+  spawnScan(
+    tableName: string,
+    segment: number,
+    totalSegments: number,
+  ): ChildProcessWithoutNullStreams {
+    const useFile = this.config.get<boolean>('dynamodb.useExistingFile');
+    if (useFile) {
+      return spawnWrapper('cat', [`output-${segment}.json`]);
     }
 
-    return new Promise((resolve, reject) => {
-      const awsScan = spawn('aws', [
-        'dynamodb',
-        'scan',
-        '--table-name',
-        tableName,
-        '--select',
-        'ALL_ATTRIBUTES',
-        '--segment',
-        `${segment}`,
-        `--total-segments`,
-        `${totalSegments}`,
-        '--output',
-        'json',
-      ])
+    return spawnWrapper('aws', [
+      'dynamodb',
+      'scan',
+      '--table-name',
+      tableName,
+      '--select',
+      'ALL_ATTRIBUTES',
+      '--segment',
+      `${segment}`,
+      `--total-segments`,
+      `${totalSegments}`,
+      '--output',
+      'json',
+    ]);
+  }
 
-      const jqProcess = spawn('jq', [
-        '-r',
-        `def keys: ["PK", "SK", "addressId", "addressObjectId", "avm", "campaignState", "cancellationMotive", "cma", "created", "createdBy", "createdDate", "customerData", "customerStatus", "defaultReportId", "editedBy", "entityType", "hash", "hfa", "invitationId", "isArchived", "isFavorite", "lastModified", "lastReportDate", "lastSeen", "leadQualification", "maintenanceLevel", "modifiedDate", "onBoarded", "previousAdvisor", "propertyInfo", "reopenMotive", "reportId", "reportStatus", "reports", "searchKey", "shortHash", "state", "transferReason"];
+  spawnJq(): ChildProcessWithoutNullStreams {
+    return spawnWrapper('jq', [
+      '-r',
+      `def keys: ["PK", "SK", "addressId", "addressObjectId", "avm", "campaignState", "cancellationMotive", "cma", "created", "createdBy", "createdDate", "customerData", "customerStatus", "defaultReportId", "editedBy", "entityType", "hash", "hfa", "invitationId", "isArchived", "isFavorite", "lastModified", "lastReportDate", "lastSeen", "leadQualification", "maintenanceLevel", "modifiedDate", "onBoarded", "previousAdvisor", "propertyInfo", "reopenMotive", "reportId", "reportStatus", "reports", "searchKey", "shortHash", "state", "transferReason"];
 
         .Items |  
         keys,  
@@ -81,26 +122,7 @@ export class DynamodbReadService implements IReadStreamService {
             end
           end
         ])[] | @csv`,
-      ])
-
-      const outputFile = createWriteStream(resultFile)
-
-      awsScan.stdout.pipe(jqProcess.stdin)
-      jqProcess.stdout.pipe(outputFile)
-
-      awsScan.stderr.on('data', (data) =>
-        console.error(`AWS Scan Error: ${data}`),
-      )
-      jqProcess.stderr.on('data', (data) => console.error(`jq Error: ${data}`))
-
-      jqProcess.on('close', (code) => {
-        if (code === 0) {
-          resolve(resultFile)
-        } else {
-          reject(new Error(`jq process exited with code ${code}`))
-        }
-      })
-    })
+    ]);
   }
 }
 
@@ -110,6 +132,8 @@ export class DynamodbReadService implements IReadStreamService {
  --table-name code-kata-dummy-data \
  --profile code_kata \
  --select ALL_ATTRIBUTES \
+ --segment 0 \
+ --totalSegments 4
  --output json | jq -r '.Items'  | jq -r '
  (map(keys) | add | unique) as $keys |
  $keys,

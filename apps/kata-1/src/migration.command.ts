@@ -1,7 +1,7 @@
-import { Command, CommandRunner, Option } from 'nest-commander'
-import { ConsoleLogger, Inject, LoggerService } from '@nestjs/common'
-import { IMigrationManager, MigrationCommandOptions } from './interfaces'
-import { MIGRATION_MANAGER_TOKEN } from './constants'
+import { Command, CommandRunner, Option } from 'nest-commander';
+import { ConsoleLogger, Inject, LoggerService } from '@nestjs/common';
+import { IMigrationManager, MigrationCommandOptions } from './interfaces';
+import { MIGRATION_MANAGER_TOKEN } from './constants';
 
 @Command({
   name: 'migrate',
@@ -13,16 +13,16 @@ export class MigrationCommand extends CommandRunner {
     @Inject(MIGRATION_MANAGER_TOKEN)
     private readonly migrationManager: IMigrationManager,
   ) {
-    super()
+    super();
   }
 
   async run(
     passedParam: string[],
     options?: MigrationCommandOptions,
   ): Promise<void> {
-    this.loggerService.debug(passedParam)
-    this.loggerService.debug(options)
-    await this.migrationManager.run(options)
+    this.loggerService.debug(passedParam);
+    this.loggerService.debug(options);
+    await this.migrationManager.run(options);
   }
 
   @Option({
@@ -31,7 +31,7 @@ export class MigrationCommand extends CommandRunner {
     required: true,
   })
   parseInputType(val: string): string {
-    return val
+    return val;
   }
 
   @Option({
@@ -40,6 +40,6 @@ export class MigrationCommand extends CommandRunner {
     required: true,
   })
   parseTableName(val: string): string {
-    return val
+    return val;
   }
 }

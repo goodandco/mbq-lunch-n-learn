@@ -1,73 +1,78 @@
-import { Readable } from 'node:stream';
-import { pipeline } from 'node:stream/promises';
-import { createReadStream, createWriteStream } from 'node:fs';
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import { createReadStream, createWriteStream } from 'node:fs'
 import {
   ChildProcessWithoutNullStreams,
   SpawnOptionsWithoutStdio,
   spawn,
-} from 'node:child_process';
+} from 'node:child_process'
 import {
   ConsoleLogger,
   Inject,
   Injectable,
   LoggerService,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { IReadStreamService } from '../interfaces';
+} from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
+import {
+  IDynamodbReadOptions,
+  IReadStreamService,
+} from '../../common/common.interfaces'
 
 function spawnWrapper(
   command: string,
   args?: readonly string[],
   opts?: SpawnOptionsWithoutStdio,
 ): ChildProcessWithoutNullStreams {
-  const options = opts ?? { env: { ...process.env } };
-  const childProcess = spawn(command, args, options);
+  const options = opts ?? { env: { ...process.env } }
+  const childProcess = spawn(command, args, options)
   childProcess.stderr.on('data', (data) =>
     console.error(`Child process error for command ${command}: ${data}`),
-  );
+  )
 
-  return childProcess;
+  return childProcess
 }
 
 function getFileName(segment: number): string {
-  return `./result-program${segment}.csv`;
+  return `./result-program${segment}.csv`
 }
 
 @Injectable()
-export class DynamodbReadService implements IReadStreamService {
+export class DynamodbReadService
+  implements IReadStreamService<IDynamodbReadOptions>
+{
   constructor(
     private readonly config: ConfigService,
     @Inject(ConsoleLogger) private readonly logger: LoggerService,
   ) {}
 
-  async read(
-    segment: number = 0,
-    totalSegments: number = 1,
-  ): Promise<Readable> {
-    this.logger.log(`Scanning segment ${segment} of ${totalSegments}`);
-    const fileName = getFileName(segment);
-    await this.scanAndSaveFile(fileName, segment, totalSegments);
+  async read({
+    segment = 0,
+    totalSegments = 1,
+  }: IDynamodbReadOptions): Promise<Readable> {
+    this.logger.log(`Scanning segment ${segment} of ${totalSegments}`)
+    const fileName = getFileName(segment)
+    const tableName = this.config.get<string>('dynamodb.tableName')
+    const useExistingFile = this.config.get<boolean>('dynamodb.useExistingFile')
+    const readingFileName = `output-${segment}.json`
     this.logger.debug(
-      `Reading file ${fileName} of segment ${segment} of ${totalSegments}`,
-    );
+      `Use existing file is ${useExistingFile}. Filename: ${fileName} Reading file: ${readingFileName}`,
+    )
+    const childReadStream = useExistingFile
+      ? spawnWrapper('cat', [readingFileName])
+      : this.spawnScan(tableName, segment, totalSegments) // : ? createReadStream(`output-${segment}.json`, { highWaterMark: 1 })
 
-    return createReadStream(fileName, { highWaterMark: 1 });
-  }
-
-  async scanAndSaveFile(
-    fileName: string,
-    segment: number,
-    totalSegments: number,
-  ): Promise<void> {
-    const tableName = this.config.get<string>('dynamodb.tableName');
-    const awsScan = this.spawnScan(tableName, segment, totalSegments);
-    const jqProcess = this.spawnJq();
-    const outputFile = createWriteStream(fileName);
+    const jqProcess = this.spawnJq()
 
     await Promise.all([
-      pipeline(awsScan.stdout, jqProcess.stdin),
-      pipeline(jqProcess.stdout, outputFile),
-    ]);
+      pipeline(childReadStream.stdout, jqProcess.stdin),
+      pipeline(jqProcess.stdout, createWriteStream(fileName)),
+    ])
+
+    this.logger.debug(
+      `Reading file ${fileName} of segment ${segment} of ${totalSegments}`,
+    )
+
+    return createReadStream(fileName, { highWaterMark: 1 })
   }
 
   spawnScan(
@@ -75,11 +80,6 @@ export class DynamodbReadService implements IReadStreamService {
     segment: number,
     totalSegments: number,
   ): ChildProcessWithoutNullStreams {
-    const useFile = this.config.get<boolean>('dynamodb.useExistingFile');
-    if (useFile) {
-      return spawnWrapper('cat', [`output-${segment}.json`]);
-    }
-
     return spawnWrapper('aws', [
       'dynamodb',
       'scan',
@@ -93,7 +93,7 @@ export class DynamodbReadService implements IReadStreamService {
       `${totalSegments}`,
       '--output',
       'json',
-    ]);
+    ])
   }
 
   spawnJq(): ChildProcessWithoutNullStreams {
@@ -122,7 +122,7 @@ export class DynamodbReadService implements IReadStreamService {
             end
           end
         ])[] | @csv`,
-    ]);
+    ])
   }
 }
 

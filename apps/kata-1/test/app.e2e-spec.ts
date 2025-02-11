@@ -1,14 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing'
 import { INestApplication } from '@nestjs/common'
 import * as request from 'supertest'
-import { MigrationModule } from '../src/migration.module'
+import { Kata1Module } from '../src/kata-1.module'
 
 describe('Kata1Controller (e2e)', () => {
   let app: INestApplication
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [MigrationModule],
+      imports: [Kata1Module],
     }).compile()
 
     app = moduleFixture.createNestApplication()
